@@ -1,5 +1,10 @@
 import aiohttp
+from aiohttp import ClientResponseError
 from src.services.interfaces.text_rewriter import ITextRewriterService
+from src.logging_config import logger
+
+
+logger = logger.getChild(__name__)
 
 
 class GeminiTextRewriterService(ITextRewriterService):
@@ -38,10 +43,28 @@ class GeminiTextRewriterService(ITextRewriterService):
             ]
         }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(self.base_url, headers=headers, json=body) as resp:
-                if resp.status != 200:
-                    text = await resp.text()
-                    raise Exception(f"OpenRouter API Error: {resp.status} {text}")
-                data = await resp.json()
-                return data["choices"][0]["message"]["content"]
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+                async with session.post(self.base_url, headers=headers, json=body) as resp:
+                    resp.raise_for_status()
+                    data = await resp.json()
+
+                    content = (
+                        data.get("choices", [{}])[0]
+                        .get("message", {})
+                        .get("content")
+                    )
+                    if not content:
+                        logger.error(f"OpenRouter API returned empty content: {data}")
+                        raise RuntimeError("OpenRouter API returned empty content")
+
+                    logger.debug(f"Rewritten text length: {len(content)} chars")
+                    return content
+
+        except ClientResponseError as e:
+            logger.exception(f"OpenRouter API responded with HTTP error: {e.status} {e.message}")
+            raise
+
+        except Exception as e:
+            logger.exception(f"Unexpected error during text rewriting: {repr(e)}")
+            raise
