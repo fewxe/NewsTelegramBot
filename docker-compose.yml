@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:15
@@ -24,6 +22,29 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+
+    develop:
+      watch:
+        - action: sync+restart
+          path: "./src"
+          target: /app
+          ignore:
+              - "**/__pycache__/**"
+              - "**/*.pyc"
+              - "**/*.pyo"
+              - "**/*.py~"
+              - "Dockerfile"
+              - "docker-compose.yml"
+
+        - action: sync+restart
+          path: "./main.py"
+          target: "/app/main.py"
+
+        - action: rebuild
+          path: "requirements.txt"
+          target: /app
 
 volumes:
   postgres_data:
