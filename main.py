@@ -3,6 +3,7 @@ from aiogram import Bot, Dispatcher
 from src.application.channel_manager import ChannelManager
 from src.bot.admin_handlers import admin_router
 from src.bot.handlers import channel_events_router
+from src.bot.middlewares.check_admin_middleware import AdminCheckMiddleware
 from src.infrastructure.models import Base
 from src.infrastructure.db import engine
 from src.services.news_source.feed_service import FeedService
@@ -18,8 +19,8 @@ import os
 
 
 load_dotenv()
-BOT_TOKEN: str | None = os.getenv("BOT_TOKEN")
-API_KEY: str | None = os.getenv("API_KEY")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+API_KEY = os.getenv("API_KEY")
 
 
 async def init_db():
@@ -48,8 +49,11 @@ async def main():
         
         await news_scheduler.schedule_all()
         news_scheduler.start()
+        
+        middleware = AdminCheckMiddleware(bot, channel_service)
+        dp.message.middleware(middleware)
 
-        await dp.start_polling(bot) 
+        await dp.start_polling(bot)
 
 if __name__ == '__main__':
     asyncio.run(main())
