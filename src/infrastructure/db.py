@@ -8,7 +8,7 @@ logger = logger.getChild(__name__)
 
 
 load_dotenv()
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = f"postgresql+asyncpg://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('POSTGRES_PORT')}/{os.getenv('POSTGRES_DB')}"
 
 if not DATABASE_URL:
     logger.critical("DATABASE_URL not found in environment! Exiting.")
