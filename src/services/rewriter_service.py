@@ -7,8 +7,8 @@ from src.logging_config import logger
 logger = logger.getChild(__name__)
 
 
-class GeminiTextRewriterService(ITextRewriterService):
-    def __init__(self, api_key: str, model: str = "google/gemini-2.5-flash-lite-preview-06-17"):
+class DeepSeekTextRewriterService(ITextRewriterService):
+    def __init__(self, api_key: str, model: str = "deepseek/deepseek-chat-v3-0324:free"):
         self.api_key = api_key
         self.model = model
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"

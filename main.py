@@ -11,7 +11,7 @@ from src.services.channel_service import ChannelService
 from src.services.message_service import MessageService
 from src.services.telegram_message_sender import TelegramMessageSender
 from src.infrastructure.repositories import ChannelRepository
-from src.services.rewriter_service import GeminiTextRewriterService
+from src.services.rewriter_service import DeepSeekTextRewriterService
 from src.infrastructure.db import SessionLocal
 from src.services.news_scheduler import NewsScheduler
 from dotenv import load_dotenv
@@ -39,7 +39,7 @@ async def main():
         repo = ChannelRepository(session)
         channel_service = ChannelService(repo)
         message_sender = TelegramMessageSender(bot)
-        rewrite_service = GeminiTextRewriterService(API_KEY)
+        rewrite_service = DeepSeekTextRewriterService(API_KEY)
         message_service = MessageService(message_sender, channel_service, rewrite_service)
         news_scheduler = NewsScheduler(channel_service, feed_service, message_service)
         channel_manager = ChannelManager(channel_service, news_scheduler)
