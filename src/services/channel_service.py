@@ -90,9 +90,9 @@ class ChannelService:
         logger.info(f"Channel with id={channel_id} disabled")
 
     async def set_work_interval(self, channel_id: int, interval_minutes: int):
-        if interval_minutes < 5:
-            logger.error(f"Attempted to set interval less than 5 minutes for channel id={channel_id}")
-            raise RuntimeError("Min time interval cannot be less than 5 min")
+        if interval_minutes <= 1:
+            logger.error(f"Attempted to set interval less than 1 minutes for channel id={channel_id}")
+            raise RuntimeError("Min time interval cannot be less than 1 min")
         await self.repository.set_work_interval(channel_id, interval_minutes)
         logger.info(f"Interval set to {interval_minutes} minutes for channel id={channel_id}")
 

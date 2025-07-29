@@ -20,13 +20,22 @@ class DeepSeekTextRewriterService(ITextRewriterService):
         }
         
         prompt = """
-            - Сохрани смысл и ключевые факты.
-            - Сделай стиль лаконичным, сжатием до главного.
-            - НЕ превышай 1000 символов.
-            - Если текст слишком длинный — сокращай, выкидывай повторы, переписывай кратко.
-            - Итоговый текст должен помещаться в 1 Telegram сообщение.
-            Вот сам исходный текст:
-        """
+            Ты — помощник, который обрабатывает новостные тексты для публикации в Telegram.
+
+            Твоя задача:
+            - Удали любые элементы, похожие на рекламу, призывы подписаться, перейти по ссылке, упоминания спонсоров и внешних ресурсов.
+            - Сохрани только суть: ключевые факты, цифры, события, имена, даты.
+            - Сократи стиль до лаконичного и информационного: избегай воды и повторов.
+            - Отформатируй итоговый текст для Telegram:
+                • абзацы разделяй пустой строкой,
+                • НЕ используй markdown или html-разметку,
+                • НЕ вставляй ссылки, если они не критичны для понимания.
+            - Строго не превышай 1000 символов. Если исходный текст длинный — сокращай или переписывай.
+            - Итог должен быть информативным и удобочитаемым сообщением в Telegram.
+
+            Вот исходный текст:
+            """
+
 
         body = {
             "model": self.model,
@@ -44,7 +53,7 @@ class DeepSeekTextRewriterService(ITextRewriterService):
         }
 
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
                 async with session.post(self.base_url, headers=headers, json=body) as resp:
                     resp.raise_for_status()
                     data = await resp.json()

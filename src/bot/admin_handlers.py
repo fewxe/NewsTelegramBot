@@ -15,6 +15,25 @@ class RssStates(StatesGroup):
 
 def admin_router(channel_manager: ChannelManager) -> Router:
     router = Router()
+    
+    @router.callback_query(F.data == "cancel_input")
+    async def cancel_input(call: CallbackQuery, state: FSMContext):
+        data = await state.get_data()
+        await state.clear()
+        await call.answer("Действие отменено.")
+
+        channel_id = data.get("channel_id")
+        if channel_id:
+            channel = await channel_manager.channel_service.get_channel(channel_id)
+            if channel:
+                text = await render_channel_info(channel)
+                await safe_edit(call, text, get_channel_kb(channel))
+                return
+
+        await safe_edit(call, "Админ-меню:", InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Список каналов", callback_data="list_channels")]
+        ]))
+
 
     def get_channel_kb(channel):
         kb = [
@@ -41,19 +60,22 @@ def admin_router(channel_manager: ChannelManager) -> Router:
 
     async def safe_edit(call: CallbackQuery, text: str, kb: InlineKeyboardMarkup):
         msg = call.message
-        if msg is None or not hasattr(msg, "edit_text"):
-            await call.answer("Нет сообщения для обновления.", show_alert=True)
+        if not isinstance(msg, Message):
             return
+        if msg.text == text and msg.reply_markup == kb:
+            return
+        
         try:
-            if getattr(msg, "text", None) == text and getattr(msg, "reply_markup", None) == kb:
-                await call.answer("Без изменений.")
-                return
             await msg.edit_text(text, reply_markup=kb)
         except TelegramBadRequest as e:
             if "message is not modified" in str(e):
+                return
+            try:
+                await msg.delete()
+            except TelegramBadRequest:
                 pass
-            else:
-                raise
+            if call.bot is not None:
+                await call.bot.send_message(chat_id=msg.chat.id, text=text, reply_markup=kb)
 
     @router.message(Command("admin"))
     async def admin_menu(message: Message):
@@ -144,19 +166,25 @@ def admin_router(channel_manager: ChannelManager) -> Router:
 
     @router.callback_query(F.data.startswith("add_rss_"))
     async def add_rss_start(call: CallbackQuery, state: FSMContext):
-        data = call.data
-        if not data or data.count("_") < 2:
-            await call.answer("Некорректные данные.", show_alert=True)
-            return
         try:
-            channel_id = int(data.split("_")[2])
+            if not isinstance(call.data, str):
+                raise
+            channel_id = int(call.data.split("_")[2])
         except Exception:
             await call.answer("Некорректный ID.", show_alert=True)
             return
+
         await state.update_data(channel_id=channel_id)
-        if call.message:
-            await call.message.answer("Введите новую RSS-ссылку для этого канала:")
         await state.set_state(RssStates.waiting_rss_add)
+        
+        if isinstance(call.message, Message):
+            await call.message.answer(
+                "Введите новую RSS-ссылку для этого канала",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_input")]
+                ])
+            )
+
 
     @router.message(RssStates.waiting_rss_add)
     async def add_rss_finish(message: Message, state: FSMContext):
@@ -237,19 +265,24 @@ def admin_router(channel_manager: ChannelManager) -> Router:
 
     @router.callback_query(F.data.startswith("set_interval_"))
     async def set_interval_start(call: CallbackQuery, state: FSMContext):
-        data = call.data
-        if not data or data.count("_") < 2:
-            await call.answer("Некорректные данные.", show_alert=True)
-            return
         try:
-            channel_id = int(data.split("_")[2])
+            if not isinstance(call.data, str):
+                raise
+            channel_id = int(call.data.split("_")[2])
         except Exception:
             await call.answer("Некорректный ID.", show_alert=True)
             return
+
         await state.update_data(channel_id=channel_id)
-        if call.message:
-            await call.message.answer("Введите интервал обработки канала в минутах (целое число):")
         await state.set_state(RssStates.waiting_interval)
+        if isinstance(call.message, Message):
+            await call.message.answer(
+                "Введите интервал обработки канала в минутах",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_input")]
+                ])
+            )
+
 
     @router.message(RssStates.waiting_interval)
     async def set_interval_finish(message: Message, state: FSMContext):
