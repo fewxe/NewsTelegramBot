@@ -4,7 +4,9 @@ from src.services.interfaces.message_sender import IMessageSender
 from src.services.channel_service import ChannelService
 from src.services.interfaces.text_rewriter import ITextRewriterService
 from src.services.news_source.news_source import NewsSource
+from src.logging_config import logger
 
+logger = logger.getChild(__name__)
 
 class MessageService:
     def __init__(self, message_sender: IMessageSender, channel_service: ChannelService, rewrite_service: ITextRewriterService):
@@ -13,61 +15,68 @@ class MessageService:
         self.rewrite_service = rewrite_service
 
     async def send_one_news_to_channel(self, channel: ChannelDTO, feed_service: NewsSource):
-        print(f"[MessageService] Начинаем обработку канала ID={channel.id}")
+        logger.info(f"Start processing channel ID={channel.id}")
 
         all_news = []
         for rss_url in channel.rss_links:
-            print(f"[MessageService] Загружаем новости из RSS: {rss_url}")
-            news = await feed_service.fetch_latest_news(rss_url)
-            print(f"[MessageService] Найдено {len(news)} новостей")
-            all_news.extend(news)
+            try:
+                logger.info(f"Fetching news from RSS feed: {rss_url}")
+                news = await feed_service.fetch_latest_news(rss_url)
+                logger.info(f"Fetched {len(news)} news items from {rss_url}")
+                all_news.extend(news)
+            except Exception as e:
+                logger.error(f"Failed to fetch news from {rss_url}: {repr(e)}", exc_info=True)
+
+        if not all_news:
+            logger.info(f"No news fetched for channel ID={channel.id}")
+            return
 
         all_news.sort(key=lambda n: getattr(n, "published_at", "") or "", reverse=False)
-        print(f"[MessageService] Всего собрано новостей: {len(all_news)}")
+        logger.info(f"Total collected news items: {len(all_news)}")
 
         sent_links = await self.channel_service.get_last_sent_links(channel.id)
-        print(f"[MessageService] Уже отправленные ссылки: {sent_links}")
+        logger.info(f"Already sent links for channel ID={channel.id}: {sent_links}")
 
         next_news = None
         for item in all_news:
             if item.link not in sent_links:
                 next_news = item
-                print(f"[MessageService] Нашли новую новость: {item.link}")
+                logger.info(f"Found new news item to send: {item.link}")
                 break
 
         if not next_news:
-            print(f"[MessageService] Нет новых новостей для канала ID={channel.id}")
+            logger.info(f"No new news to send for channel ID={channel.id}")
             return
 
         title = getattr(next_news, "title", "") or ""
         description = getattr(next_news, "description", "") or ""
-        print(f"[MessageService] Заголовок: {repr(title)}")
-        print(f"[MessageService] Описание: {repr(description)}")
+        logger.debug(f"News title: {repr(title)}")
+        logger.debug(f"News description: {repr(description)}")
 
         message = f"{title}\n{description}"
-        print(f"[MessageService] Исходный текст:\n{message}")
+        logger.debug(f"Original message text:\n{message}")
 
         try:
             rewritten_message = await self.rewrite_service.rewrite(message)
-            print(f"[MessageService] Переписанный текст:\n{repr(rewritten_message)}")
+            logger.info(f"Rewritten message text:\n{repr(rewritten_message)}")
         except Exception as e:
-            print(f"[MessageService] Ошибка в rewrite_service: {repr(e)}")
+            logger.critical(f"Rewrite service failed: {repr(e)}", exc_info=True)
             return
 
         try:
-            print(f"[MessageService] Отправка сообщения в канал {channel.id}...")
+            logger.info(f"Sending message to channel ID={channel.id}...")
             await self.message_sender.send_message(
                 channel.id,
                 rewritten_message,
                 getattr(next_news, "image_link", None)
             )
-            print(f"[MessageService] Сообщение успешно отправлено в канал ID={channel.id}")
+            logger.info(f"Message successfully sent to channel ID={channel.id}")
         except Exception as e:
-            print(f"[MessageService] Ошибка при отправке: {repr(e)}")
+            logger.critical(f"Failed to send message: {repr(e)}", exc_info=True)
             return
 
         try:
             await self.channel_service.add_last_sent_links(channel.id, next_news.link)
-            print(f"[MessageService] Ссылка новости добавлена в отправленные.")
+            logger.info(f"Added news link to sent history for channel ID={channel.id}")
         except Exception as e:
-            print(f"[MessageService] Ошибка при сохранении ссылки: {repr(e)}")
+            logger.critical(f"Failed to save sent news link: {repr(e)}", exc_info=True)
