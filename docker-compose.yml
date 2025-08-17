@@ -6,6 +6,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "${POSTGRES_PORT}:5432"
+    restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
@@ -22,6 +23,7 @@ services:
       - "8000:8000"
     volumes:
       - ./logs:/app/logs
+    restart: unless-stopped
 
     develop:
       watch:
